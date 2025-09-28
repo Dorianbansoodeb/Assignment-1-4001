@@ -19,6 +19,18 @@ int main(int argc, char** argv) {
     std::string execution;  //!< string to accumulate the execution output
 
     /******************ADD YOUR VARIABLES HERE*************************/
+    int now_ms = 0;               // current time in ms
+
+    int KERNEL_MODE = 1; //time to switch to kernel mode
+    int CTX_RSTR = 10; //time to save context/restore
+    int ISR_COST = 40; //time to execute ISR
+
+    int DEVICE_COUNT = 32; //number of devices
+    int device_due_at[DEVICE_COUNT]; //array to track when each device will complete its I/O
+    for (int i = 0; i < DEVICE_COUNT; i++) {
+        device_due_at[i] = -1; //initialize all devices to not busy
+    }
+    
 
 
 
