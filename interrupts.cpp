@@ -5,7 +5,7 @@
  *
  */
 
-#include<interrupts.hpp>
+#include "interrupts.hpp"
 
 int main(int argc, char** argv) {
 
@@ -27,7 +27,7 @@ int main(int argc, char** argv) {
     int VECTOR_LOOKUP = 1; //time to lookup vector address
     int ISR_ADDR_LOOKUP = 1; //time to lookup ISR address
 
-    int DEVICE_COUNT = 32; //number of devices
+    const int DEVICE_COUNT = 32; //number of devices
     int device_due_at[DEVICE_COUNT]; //array to track when each device will complete its I/O
     for (int i = 0; i < DEVICE_COUNT; i++) {
         device_due_at[i] = -1; //initialize all devices to not busy
