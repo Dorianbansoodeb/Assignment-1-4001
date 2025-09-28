@@ -21,7 +21,7 @@ int main(int argc, char** argv) {
     /******************ADD YOUR VARIABLES HERE*************************/
     int now_ms = 0;               // current time in ms
 
-    int KERNEL_MODE = 1; //time to switch to kernel mode
+    int KERNEL_MODE = 1; //time to switch between to and from kernel mode
     int CTX_RSTR = 10; //time to save context/restore
     int ISR_COST = 40; //time to execute ISR
     int VECTOR_LOOKUP = 1; //time to lookup vector address
@@ -62,7 +62,40 @@ int main(int argc, char** argv) {
             now_ms += ISR_ADDR_LOOKUP;
 
             execution += std::to_string(now_ms) + ", " + std::to_string(ISR_COST) + ", call device driver\n";
-            
+            now_ms += ISR_COST;
+
+            device_due_at[duration_intr] = now_ms + delays.at(duration_intr);
+
+            execution += std::to_string(now_ms) + ", " + std::to_string(KERNEL_MODE) + ", IRET\n";
+            now_ms += KERNEL_MODE;
+        }
+        else if (activity == "END_IO"){
+            if(duration_intr >=0 && duration_intr < DEVICE_COUNT && device_due_at[duration_intr]>=0 && now_ms<device_due_at[duration_intr]){
+                now_ms = device_due_at[duration_intr];
+            }
+
+            if (duration_intr>=0 && duration_intr < DEVICE_COUNT){
+                device_due_at[duration_intr] = -1; //reset device to not busy
+            }
+            execution += std::to_string(now_ms) + ", " + std::to_string(KERNEL_MODE) + ", switch to kernel mode\n";
+            now_ms += KERNEL_MODE;
+
+            execution += std::to_string(now_ms) +", " + std::to_string(CTX_RSTR) + ", context saved\n";
+            now_ms += CTX_RSTR;
+
+            int mem_pos = ADDR_BASE + duration_intr * VECTOR_SIZE;
+            execution += std::to_string(now_ms) + ", " + std::to_string(VECTOR_LOOKUP) + ", find vector " + std::to_string(duration_intr) + " in memory position " + std::to_string(mem_pos) + "\n";
+            now_ms += VECTOR_LOOKUP;
+
+            execution += std::to_string(now_ms) + ", " + std::to_string(ISR_ADDR_LOOKUP) + ", obtain ISR address (" + vectors.at(duration_intr) + ")\n";
+            now_ms += ISR_ADDR_LOOKUP;
+
+            execution += std::to_string(now_ms) + ", " + std::to_string(ISR_COST) + ", end of I/O " + std::to_string(duration_intr) + ": interrupt service\n";
+            now_ms += ISR_COST;
+
+            execution += std::to_string(now_ms) + ", " + std::to_string(KERNEL_MODE) + ", IRET\n";
+            now_ms += KERNEL_MODE;
+
         }
 
 
