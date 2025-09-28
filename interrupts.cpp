@@ -24,13 +24,15 @@ int main(int argc, char** argv) {
     int KERNEL_MODE = 1; //time to switch to kernel mode
     int CTX_RSTR = 10; //time to save context/restore
     int ISR_COST = 40; //time to execute ISR
+    int VECTOR_LOOKUP = 1; //time to lookup vector address
+    int ISR_ADDR_LOOKUP = 1; //time to lookup ISR address
 
     int DEVICE_COUNT = 32; //number of devices
     int device_due_at[DEVICE_COUNT]; //array to track when each device will complete its I/O
     for (int i = 0; i < DEVICE_COUNT; i++) {
         device_due_at[i] = -1; //initialize all devices to not busy
     }
-    
+
 
 
 
@@ -41,7 +43,27 @@ int main(int argc, char** argv) {
         auto [activity, duration_intr] = parse_trace(trace);
 
         /******************ADD YOUR SIMULATION CODE HERE*************************/
+        if (activity == "CPU"){
+            execution+= std::to_string(now_ms) + ", " + std::to_string(duration_intr) + ", CPU burst\n";
+            now_ms += duration_intr;
+        }
+        else if (activity == "SYSCALL"){
+            execution += std::to_string(now_ms) + ", "+std::to_string(KERNEL_MODE)+", switch to kernel mode\n";
+            now_ms += KERNEL_MODE;
 
+            execution += std::to_string(now_ms) + ", " + std::to_string(CTX_RSTR) + ", context saved\n";
+            now_ms += CTX_RSTR;
+
+            int mem_pos = ADDR_BASE + duration_intr * VECTOR_SIZE;
+            execution += std::to_string(now_ms) + ", " + std::to_string(VECTOR_LOOKUP) + ", find vector " + std::to_string(duration_intr) + " in memory position " + std::to_string(mem_pos) + "\n";
+            now_ms += VECTOR_LOOKUP;
+
+            execution += std::to_string(now_ms) + ", " + std::to_string(ISR_ADDR_LOOKUP) + ", obtain ISR address (" + vectors.at(duration_intr) + ")\n";
+            now_ms += ISR_ADDR_LOOKUP;
+
+            execution += std::to_string(now_ms) + ", " + std::to_string(ISR_COST) + ", call device driver\n";
+            
+        }
 
 
         /************************************************************************/
