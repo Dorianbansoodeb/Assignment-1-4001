@@ -13,6 +13,7 @@ int main(int argc, char** argv) {
     //delays  is a C++ std::vector of ints that contain the delays of each device
     //the index of these elemens is the device number, starting from 0
     auto [vectors, delays] = parse_args(argc, argv);
+    
     std::ifstream input_file(argv[1]);
 
     std::string trace;      //!< string to store single line of trace file
@@ -43,13 +44,23 @@ int main(int argc, char** argv) {
     //parse each line of the input trace file
     while(std::getline(input_file, trace)) {
         auto [activity, duration_intr] = parse_trace(trace);
+        // skip empty / bad lines
+        if (activity.empty()) continue;
+
+        // bounds check: both tables must have the index
+        
 
         /******************ADD YOUR SIMULATION CODE HERE*************************/
         if (activity == "CPU"){
-            execution+= std::to_string(now_ms) + ", " + std::to_string(duration_intr) + ", CPU burst\n";
+            execution+= std::to_string(now_ms) + ", " + std::to_string(duration_intr) + ", CPU Burst\n";
             now_ms += duration_intr;
         }
         else if (activity == "SYSCALL"){
+            if (duration_intr < 0 || duration_intr >= static_cast<int>(vectors.size()) || duration_intr >= static_cast<int>(delays.size())) {
+            // Optional: log & skip
+            // execution += std::to_string(now_ms) + ", 0, ERROR: index out of range (" + std::to_string(duration_intr) + ")\n";
+            continue;
+        }
             execution += std::to_string(now_ms) + ", "+std::to_string(KERNEL_MODE)+", switch to kernel mode\n";
             now_ms += KERNEL_MODE;
 
@@ -63,21 +74,40 @@ int main(int argc, char** argv) {
             execution += std::to_string(now_ms) + ", " + std::to_string(ISR_ADDR_LOOKUP) + ", load ISR address (" + vectors.at(duration_intr) + ") into the PC\n";
             now_ms += ISR_ADDR_LOOKUP;
 
-            execution += std::to_string(now_ms) + ", " + std::to_string(ISR_COST) + ", SYSCALL: run the ISR\n";
-            now_ms += ISR_COST;
+            // CHUNKED: consume device delay in up-to-40ms steps
+            int remaining = delays.at(duration_intr);
 
-            execution += std::to_string(now_ms) + ", " + std::to_string(DATA_TRANSFER) + ", transfer data from device to memory\n";
-            now_ms += DATA_TRANSFER;
+            // 1) ISR body: up to 40ms
+            int isr_ms = std::min(ISR_COST, remaining);
+            if (isr_ms > 0) {
+                execution += std::to_string(now_ms) + ", " + std::to_string(isr_ms) + ", SYSCALL: run the ISR (device driver)\n";
+                now_ms += isr_ms;
+                remaining -= isr_ms;
+            }
 
-            int device_delay = delays.at(duration_intr) - 2 * DATA_TRANSFER; // subtract 80ms
-            if (device_delay < 0) device_delay = 0;
-            execution += std::to_string(now_ms) + ", " + std::to_string(device_delay) + ", check for errors\n";
-            now_ms += device_delay;
+            // 2) Data transfer: up to 40ms
+            int xfer_ms = std::min(DATA_TRANSFER, remaining);
+            if (xfer_ms > 0) {
+                execution += std::to_string(now_ms) + ", " + std::to_string(xfer_ms) + ", transfer data from device to memory\n";
+                now_ms += xfer_ms;
+                remaining -= xfer_ms;
+            }
+
+            // 3) Whatever remains
+            if (remaining > 0) {
+                execution += std::to_string(now_ms) + ", " + std::to_string(remaining) + ", check for errors\n";
+                now_ms += remaining;
+            }
 
             execution += std::to_string(now_ms) + ", " + std::to_string(KERNEL_MODE) + ", IRET\n";
             now_ms += KERNEL_MODE;
         }
         else if (activity == "END_IO"){
+            if (duration_intr < 0 || duration_intr >= static_cast<int>(vectors.size()) || duration_intr >= static_cast<int>(delays.size())) {
+            // Optional: log & skip
+            // execution += std::to_string(now_ms) + ", 0, ERROR: index out of range (" + std::to_string(duration_intr) + ")\n";
+            continue;
+        }
             // if(duration_intr >=0 && duration_intr < DEVICE_COUNT && device_due_at[duration_intr]>=0 && now_ms<device_due_at[duration_intr]){
             //     now_ms = device_due_at[duration_intr];
             // }
@@ -98,12 +128,22 @@ int main(int argc, char** argv) {
             execution += std::to_string(now_ms) + ", " + std::to_string(ISR_ADDR_LOOKUP) + ", obtain ISR address (" + vectors.at(duration_intr) + ") into the PC\n";
             now_ms += ISR_ADDR_LOOKUP;
 
-            execution += std::to_string(now_ms) + ", " + std::to_string(ISR_COST) + ", ENDIO: run the ISR\n";
-            now_ms += ISR_COST;
+            // CHUNKED: consume device delay in up-to-40ms steps
+            int remaining = delays.at(duration_intr);
 
-            int device_delay = delays.at(duration_intr) - DATA_TRANSFER;  // -40 exactly once
-            execution += std::to_string(now_ms) + ", " + std::to_string(device_delay) + ", check device status\n";
-            now_ms += device_delay;
+            // 1) ISR body: up to 40ms
+            int isr_ms = std::min(ISR_COST, remaining);
+            if (isr_ms > 0) {
+                execution += std::to_string(now_ms) + ", " + std::to_string(isr_ms) + ", ENDIO: run the ISR (device driver)\n";
+                now_ms += isr_ms;
+                remaining -= isr_ms;
+            }
+
+            // 2) Whatever remains goes to status check
+            if (remaining > 0) {
+                execution += std::to_string(now_ms) + ", " + std::to_string(remaining) + ", check device status\n";
+                now_ms += remaining;
+            }
 
             execution += std::to_string(now_ms) + ", " + std::to_string(KERNEL_MODE) + ", IRET\n";
             now_ms += KERNEL_MODE;
@@ -117,7 +157,9 @@ int main(int argc, char** argv) {
 
     input_file.close();
 
-    write_output(execution);
+    std::ofstream outfile("execution_5.txt");
+    outfile << execution;
+    outfile.close();
 
     return 0;
 }
